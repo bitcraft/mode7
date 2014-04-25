@@ -1,12 +1,15 @@
-__author__ = 'leif'
+"""
+fake perspective tricks using rotozoom and scale
+"""
 
 import pygame
 from pygame.locals import *
-from pygame.transform import smoothscale, scale, rotozoom
+from pygame.transform import smoothscale, rotozoom, flip
 
-ROTATION_SPEED = 25
-PERSPECTIVE_SPEED = .1
-ZOOM_SPEED = .75
+ROTATION_SPEED = 100
+PERSPECTIVE_SPEED = .35
+ZOOM_SPEED = 2
+
 
 def init_screen(width, height):
     return pygame.display.set_mode((width, height), pygame.RESIZABLE)
@@ -26,9 +29,12 @@ class Mode7(object):
 
     @zoom.setter
     def zoom(self, value):
-        if not value == self._zoom:
-            self._dirty = 1
-            self._zoom = value
+        if value > 0:
+            if not value == self._zoom:
+                self._dirty = 1
+                self._zoom = value
+        else:
+            raise ValueError
 
     @property
     def perspective(self):
@@ -36,9 +42,12 @@ class Mode7(object):
 
     @perspective.setter
     def perspective(self, value):
-        if not value == self._perspective:
-            self._dirty = 1
-            self._perspective = value
+        if 1 > value > 0:
+            if not value == self._perspective:
+                self._dirty = 1
+                self._perspective = value
+        else:
+            raise ValueError
 
     @property
     def rotation(self):
@@ -48,7 +57,7 @@ class Mode7(object):
     def rotation(self, value):
         if not value == self._rotation:
             self._dirty = 1
-            self._rotation = value
+            self._rotation = value % 360
 
     @property
     def image(self):
@@ -61,20 +70,17 @@ class Mode7(object):
         return self.original.get_size()
 
     def render(self):
-        w, h = self.original.get_size()
         image = rotozoom(self.original, self._rotation, self._zoom)
         w2, h2 = image.get_size()
-        image = scale(image, (w2, int(h2*self._perspective)))
+        image = smoothscale(image, (w2, int(h2*self._perspective)))
         return image
 
 
 class SimpleTest(object):
     def __init__(self, filename):
-        self.renderer = None
         self.running = False
         self.dirty = False
         self.exit_status = 0
-
         self.renderer = Mode7(filename)
 
         self._r = 0
@@ -128,10 +134,16 @@ class SimpleTest(object):
             self.z_velocity = 0
 
     def update(self, dt):
-        self._r += self.r_velocity * dt
-        self._p += self.p_velocity * dt
+        p = self._p + self.p_velocity * dt
+        try:
+            self.renderer.perspective = p
+        except ValueError:
+            pass
+        else:
+            self._p = p
+
         self._z += self.z_velocity * dt
-        self.renderer.perspective = self._p
+        self._r += self.r_velocity * dt
         self.renderer.rotation = self._r
         self.renderer.zoom = self._z
 
@@ -150,9 +162,6 @@ class SimpleTest(object):
         return self.exit_status
 
 if __name__ == '__main__':
-    import os.path
-    import glob
-
     pygame.init()
     pygame.font.init()
     screen = init_screen(600, 600)
@@ -161,8 +170,7 @@ if __name__ == '__main__':
     filename = 'pygame_logo_med.png'
 
     try:
-        if not SimpleTest(filename).run():
-            pass
+        SimpleTest(filename).run()
     except:
         pygame.quit()
         raise
